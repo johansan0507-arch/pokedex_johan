@@ -102,6 +102,7 @@
   const searchInput = document.getElementById('searchInput');
   const searchBtn = document.getElementById('searchBtn');
   const generationSelect = document.getElementById('generationSelect');
+  const themeSelect = document.getElementById('themeSelect');
   const pokemonCounterBadge = document.getElementById('pokemonCounterBadge');
   const typesFilterContainer = document.getElementById('typesFilterContainer');
   const pokemonModal = document.getElementById('pokemonModal');
@@ -233,6 +234,32 @@
     if (suffix === 'hisui') return 'Hisui';
     if (suffix === 'paldea') return 'Paldea';
     return suffix.replace(/-/g, ' ').toUpperCase();
+  }
+
+  // ==========================================================================
+  //  SISTEMA DE TEMAS VISUALES CON PERSISTENCIA
+  // ==========================================================================
+  function applyTheme(themeName) {
+    const validThemes = ['classic', 'dark', 'masterball', 'ultraball', 'greatball', 'gameboy', 'rotom'];
+    const chosen = validThemes.includes(themeName) ? themeName : 'classic';
+
+    document.body.setAttribute('data-theme', chosen);
+    localStorage.setItem('pokedex_theme', chosen);
+
+    if (themeSelect && themeSelect.value !== chosen) {
+      themeSelect.value = chosen;
+    }
+  }
+
+  function initTheme() {
+    const savedTheme = localStorage.getItem('pokedex_theme') || 'classic';
+    applyTheme(savedTheme);
+
+    if (themeSelect) {
+      themeSelect.addEventListener('change', e => {
+        applyTheme(e.target.value);
+      });
+    }
   }
 
   // ---------- Mensajes y Loader ----------
@@ -1690,6 +1717,7 @@
 
   // ---------- Inicialización de Eventos ----------
   function init() {
+    initTheme();
     loadSelection('1');
 
     if (generationSelect) {

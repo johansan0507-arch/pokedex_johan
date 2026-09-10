@@ -11,9 +11,23 @@
     <h1>
       <span>⚡</span> Pokédex
     </h1>
-    <div class="search-box">
-      <input type="text" id="searchInput" placeholder="Nombre o Nº (Global)" aria-label="Buscar Pokémon">
-      <button id="searchBtn">Buscar</button>
+    <div class="header-actions">
+      <div class="theme-selector-wrapper">
+        <label for="themeSelect" class="theme-selector-label" title="Tema Visual">🎨</label>
+        <select id="themeSelect" class="theme-select" aria-label="Seleccionar Tema Visual">
+          <option value="classic" selected>🔴 Pokéball Clásica</option>
+          <option value="dark">🌙 Modo Oscuro (Umbreon)</option>
+          <option value="masterball">🔮 Master Ball</option>
+          <option value="ultraball">⚡ Ultra Ball</option>
+          <option value="greatball">💧 Super Ball</option>
+          <option value="gameboy">🎮 Game Boy 1996</option>
+          <option value="rotom">⚡ Rotom Dex</option>
+        </select>
+      </div>
+      <div class="search-box">
+        <input type="text" id="searchInput" placeholder="Nombre o Nº (Global)" aria-label="Buscar Pokémon">
+        <button id="searchBtn">Buscar</button>
+      </div>
     </div>
   </header>
 
