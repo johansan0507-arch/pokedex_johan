@@ -165,6 +165,30 @@
   let battleP2Moves = [];
   let isTurnRunning = false;
 
+  // Elementos del DOM del Minijuego ¿Quién es ese Pokémon?
+  const openQuizBtn = document.getElementById('openQuizBtn');
+  const quizModal = document.getElementById('quizModal');
+  const closeQuizBtn = document.getElementById('closeQuizBtn');
+  const quizStreakCount = document.getElementById('quizStreakCount');
+  const quizBestStreak = document.getElementById('quizBestStreak');
+  const quizScoreText = document.getElementById('quizScoreText');
+  const quizSprite = document.getElementById('quizSprite');
+  const quizCryBtn = document.getElementById('quizCryBtn');
+  const quizFeedback = document.getElementById('quizFeedback');
+  const quizOptionsGrid = document.getElementById('quizOptionsGrid');
+  const quizHintBtn = document.getElementById('quizHintBtn');
+  const quizNextBtn = document.getElementById('quizNextBtn');
+  const quizResetStreakBtn = document.getElementById('quizResetStreakBtn');
+
+  // Estado del Minijuego
+  let quizCurrentStreak = 0;
+  let quizBestStreakVal = parseInt(localStorage.getItem('pokedex_quiz_best_streak') || '0', 10);
+  let quizTotalRounds = 0;
+  let quizTotalCorrect = 0;
+  let quizCurrentPokemon = null;
+  let quizRoundActive = false;
+  let audioCtx = null;
+
   // Mapeo de estadísticas
   const STATS_MAP = {
     hp: { label: 'PS', class: 'stat-fill-hp' },
@@ -1254,6 +1278,239 @@
     }
   }
 
+  // ==========================================================================
+  //  SINTETIZADOR DE TONOS & EFECTOS DE SONIDO (Web Audio API)
+  // ==========================================================================
+  function playSynthTone(type) {
+    try {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+
+      const now = audioCtx.currentTime;
+
+      if (type === 'correct') {
+        // Escala ascendente alegre (Do5, Mi5, Sol5)
+        [523.25, 659.25, 783.99].forEach((freq, idx) => {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, now + idx * 0.09);
+          gain.gain.setValueAtTime(0.18, now + idx * 0.09);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.09 + 0.22);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(now + idx * 0.09);
+          osc.stop(now + idx * 0.09 + 0.22);
+        });
+      } else if (type === 'wrong') {
+        // Zumbador de respuesta errónea
+        [220, 180].forEach((freq, idx) => {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(freq, now + idx * 0.12);
+          gain.gain.setValueAtTime(0.14, now + idx * 0.12);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.12 + 0.18);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(now + idx * 0.12);
+          osc.stop(now + idx * 0.12 + 0.18);
+        });
+      } else if (type === 'record') {
+        // Fanfarria triunfal por récord batido
+        [523.25, 659.25, 783.99, 1046.5].forEach((freq, idx) => {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(freq, now + idx * 0.11);
+          gain.gain.setValueAtTime(0.22, now + idx * 0.11);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.11 + 0.32);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(now + idx * 0.11);
+          osc.stop(now + idx * 0.11 + 0.32);
+        });
+      }
+    } catch (err) {
+      // AudioContext bloqueado o no disponible
+    }
+  }
+
+  // ==========================================================================
+  //  LÓGICA DEL MINIJUEGO: ¿QUIÉN ES ESE POKÉMON? & RACHA
+  // ==========================================================================
+  function updateQuizScoreboard() {
+    if (quizStreakCount) {
+      quizStreakCount.textContent = quizCurrentStreak;
+      const currentBadge = quizStreakCount.closest('.current-streak');
+      if (currentBadge) {
+        if (quizCurrentStreak >= 3) {
+          currentBadge.classList.add('streak-hot');
+        } else {
+          currentBadge.classList.remove('streak-hot');
+        }
+      }
+    }
+
+    if (quizBestStreak) {
+      quizBestStreak.textContent = quizBestStreakVal;
+    }
+
+    if (quizScoreText) {
+      quizScoreText.textContent = `${quizTotalCorrect} / ${quizTotalRounds}`;
+    }
+  }
+
+  function openQuizModal() {
+    if (!currentPokemonList.length) {
+      loadSelection('1');
+    }
+
+    updateQuizScoreboard();
+
+    if (typeof quizModal.showModal === 'function') {
+      quizModal.showModal();
+    } else {
+      quizModal.setAttribute('open', '');
+    }
+
+    loadNextQuizRound();
+  }
+
+  function loadNextQuizRound() {
+    if (!currentPokemonList.length) return;
+
+    quizRoundActive = true;
+    quizNextBtn.style.display = 'none';
+    quizHintBtn.disabled = false;
+
+    // Seleccionar Pokémon objetivo aleatorio
+    const randomIdx = Math.floor(Math.random() * currentPokemonList.length);
+    quizCurrentPokemon = currentPokemonList[randomIdx];
+
+    // Preparar 3 opciones señuelo distintas
+    const decoys = [];
+    const pool = currentPokemonList.filter(p => p.id !== quizCurrentPokemon.id);
+    while (decoys.length < 3 && pool.length > 0) {
+      const dIdx = Math.floor(Math.random() * pool.length);
+      const chosen = pool.splice(dIdx, 1)[0];
+      decoys.push(chosen);
+    }
+
+    // Mezclar 4 opciones (1 correcta + 3 señuelos)
+    const allOptions = [quizCurrentPokemon, ...decoys].sort(() => Math.random() - 0.5);
+
+    // Asignar silueta
+    const spriteUrl =
+      quizCurrentPokemon.sprites?.other?.['official-artwork']?.front_default ||
+      quizCurrentPokemon.sprites?.front_default ||
+      '';
+
+    quizSprite.src = spriteUrl;
+    quizSprite.classList.remove('revealed');
+
+    quizFeedback.className = 'quiz-feedback';
+    quizFeedback.textContent = '¿Puedes adivinar qué Pokémon se oculta en las sombras?';
+
+    // Crear 4 botones de opción
+    quizOptionsGrid.innerHTML = '';
+    allOptions.forEach((pokemon, idx) => {
+      const btn = document.createElement('button');
+      btn.className = 'quiz-option-btn';
+      btn.innerHTML = `
+        <span class="quiz-opt-num">${idx + 1}</span>
+        <span class="quiz-opt-name">${formatPokemonDisplayName(pokemon.name)}</span>
+      `;
+      btn.addEventListener('click', () => handleQuizAnswer(pokemon, btn));
+      quizOptionsGrid.appendChild(btn);
+    });
+  }
+
+  function handleQuizAnswer(selectedPokemon, btnElement) {
+    if (!quizRoundActive || !quizCurrentPokemon) return;
+    quizRoundActive = false;
+
+    quizTotalRounds++;
+
+    // Deshabilitar todos los botones de opciones
+    const allButtons = quizOptionsGrid.querySelectorAll('.quiz-option-btn');
+    allButtons.forEach(b => (b.disabled = true));
+
+    // Revelar silueta con animación y color
+    quizSprite.classList.add('revealed');
+
+    // Reproducir grito oficial del Pokémon
+    if (quizCurrentPokemon.cries?.latest) {
+      playCry(quizCurrentPokemon.cries.latest);
+    }
+
+    const isCorrect = selectedPokemon.id === quizCurrentPokemon.id;
+
+    if (isCorrect) {
+      quizTotalCorrect++;
+      quizCurrentStreak++;
+      btnElement.classList.add('opt-correct');
+
+      let isNewRecord = false;
+      if (quizCurrentStreak > quizBestStreakVal) {
+        quizBestStreakVal = quizCurrentStreak;
+        localStorage.setItem('pokedex_quiz_best_streak', quizBestStreakVal.toString());
+        isNewRecord = true;
+      }
+
+      if (isNewRecord && quizCurrentStreak > 1) {
+        quizFeedback.className = 'quiz-feedback feedback-record';
+        quizFeedback.textContent = `🎉 ¡CORRECTO! ¡Es ${formatPokemonDisplayName(
+          quizCurrentPokemon.name
+        )}! 🏆 ¡NUEVO RÉCORD DE RACHA: ${quizCurrentStreak}!`;
+        playSynthTone('record');
+      } else {
+        quizFeedback.className = 'quiz-feedback feedback-correct';
+        quizFeedback.textContent = `🎉 ¡Correcto! ¡Es ${formatPokemonDisplayName(
+          quizCurrentPokemon.name
+        )}! 🔥 Racha actual: ${quizCurrentStreak}`;
+        playSynthTone('correct');
+      }
+    } else {
+      quizCurrentStreak = 0;
+      btnElement.classList.add('opt-wrong');
+
+      // Resaltar la opción correcta en verde
+      allButtons.forEach(b => {
+        if (b.textContent.includes(formatPokemonDisplayName(quizCurrentPokemon.name))) {
+          b.classList.add('opt-correct');
+        }
+      });
+
+      quizFeedback.className = 'quiz-feedback feedback-wrong';
+      quizFeedback.textContent = `❌ ¡Incorrecto! Era ${formatPokemonDisplayName(
+        quizCurrentPokemon.name
+      )}. ¡Racha reiniciada a 0!`;
+      playSynthTone('wrong');
+    }
+
+    updateQuizScoreboard();
+    quizNextBtn.style.display = 'inline-block';
+  }
+
+  function provideQuizHint() {
+    if (!quizCurrentPokemon || !quizRoundActive) return;
+    const types = (quizCurrentPokemon.types || []).map(t => t.type.name);
+    quizFeedback.textContent = `💡 Pista de Tipo: Es de tipo ${types.join(' / ').toUpperCase()}`;
+    quizHintBtn.disabled = true;
+  }
+
+  function resetQuizStreak() {
+    quizCurrentStreak = 0;
+    updateQuizScoreboard();
+    quizFeedback.className = 'quiz-feedback';
+    quizFeedback.textContent = '🔄 La racha actual se ha reiniciado a 0.';
+  }
+
   // ---------- Inicialización de Eventos ----------
   function init() {
     loadSelection('1');
@@ -1378,6 +1635,73 @@
         battleArenaView.style.display = 'none';
       });
     }
+
+    // Eventos del Minijuego: ¿Quién es ese Pokémon?
+    if (openQuizBtn) {
+      openQuizBtn.addEventListener('click', openQuizModal);
+    }
+
+    if (closeQuizBtn) {
+      closeQuizBtn.addEventListener('click', () => {
+        if (typeof quizModal.close === 'function') {
+          quizModal.close();
+        } else {
+          quizModal.removeAttribute('open');
+        }
+      });
+    }
+
+    if (quizModal) {
+      quizModal.addEventListener('click', e => {
+        const rect = quizModal.getBoundingClientRect();
+        const isInDialog =
+          rect.top <= e.clientY &&
+          e.clientY <= rect.top + rect.height &&
+          rect.left <= e.clientX &&
+          e.clientX <= rect.left + rect.width;
+        if (!isInDialog) {
+          if (typeof quizModal.close === 'function') {
+            quizModal.close();
+          } else {
+            quizModal.removeAttribute('open');
+          }
+        }
+      });
+    }
+
+    if (quizCryBtn) {
+      quizCryBtn.addEventListener('click', () => {
+        if (quizCurrentPokemon?.cries?.latest) {
+          playCry(quizCurrentPokemon.cries.latest);
+        }
+      });
+    }
+
+    if (quizNextBtn) {
+      quizNextBtn.addEventListener('click', loadNextQuizRound);
+    }
+
+    if (quizHintBtn) {
+      quizHintBtn.addEventListener('click', provideQuizHint);
+    }
+
+    if (quizResetStreakBtn) {
+      quizResetStreakBtn.addEventListener('click', resetQuizStreak);
+    }
+
+    // Atajos de teclado: números 1, 2, 3, 4 y Enter para avanzar
+    document.addEventListener('keydown', e => {
+      if (!quizModal || !quizModal.open) return;
+      if (quizRoundActive && ['1', '2', '3', '4'].includes(e.key)) {
+        const idx = parseInt(e.key, 10) - 1;
+        const buttons = quizOptionsGrid.querySelectorAll('.quiz-option-btn');
+        if (buttons[idx] && !buttons[idx].disabled) {
+          buttons[idx].click();
+        }
+      } else if (e.key === 'Enter' && quizNextBtn.style.display !== 'none') {
+        quizNextBtn.click();
+      }
+    });
   }
 
   if (document.readyState === 'loading') {

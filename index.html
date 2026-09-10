@@ -43,6 +43,9 @@
       <button id="openBattleBtn" class="battle-arena-btn" aria-label="Abrir Arena de Batalla">
         ⚔️ Arena de Batalla
       </button>
+      <button id="openQuizBtn" class="quiz-btn" aria-label="Abrir Minijuego ¿Quién es ese Pokémon?">
+        ❓ ¿Quién es ese Pokémon?
+      </button>
     </div>
   </section>
 
@@ -207,6 +210,64 @@
             <button id="rematchBattleBtn" class="arena-control-btn" style="display: none;">🔄 Revancha</button>
             <button id="changeFightersBtn" class="arena-control-btn">⚙️ Cambiar Pokémon / Ataques</button>
           </div>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Modal de Minijuego: ¿Quién es ese Pokémon? -->
+  <dialog id="quizModal" class="quiz-dialog">
+    <div class="quiz-modal-container">
+      <button class="quiz-close-btn" id="closeQuizBtn" aria-label="Cerrar minijuego">&times;</button>
+      
+      <div class="quiz-header">
+        <div class="quiz-title-wrapper">
+          <span class="quiz-badge-icon">❓</span>
+          <h2 class="quiz-title">¿Quién es ese Pokémon?</h2>
+        </div>
+        <div class="quiz-scoreboard">
+          <div class="streak-badge current-streak" title="Racha actual de aciertos consecutivos">
+            <span class="streak-icon">🔥</span>
+            <span class="streak-label">Racha:</span>
+            <span id="quizStreakCount" class="streak-value">0</span>
+          </div>
+          <div class="streak-badge best-streak" title="Mejor récord histórico">
+            <span class="streak-icon">🏆</span>
+            <span class="streak-label">Récord:</span>
+            <span id="quizBestStreak" class="streak-value">0</span>
+          </div>
+          <div class="streak-badge total-score" title="Partidas ganadas">
+            <span class="streak-icon">⭐</span>
+            <span id="quizScoreText" class="streak-value">0 / 0</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="quiz-content-card">
+        <!-- Escenario Silueta Anime -->
+        <div class="quiz-display" id="quizDisplay">
+          <div class="quiz-rays-bg"></div>
+          <img id="quizSprite" class="quiz-silhouette" src="" alt="Silueta Pokémon">
+          <button id="quizCryBtn" class="quiz-cry-btn" title="Escuchar sonido del Pokémon">
+            🔊 Escuchar Rugido
+          </button>
+        </div>
+
+        <!-- Banner de Feedback -->
+        <div id="quizFeedback" class="quiz-feedback">
+          ¿Puedes adivinar qué Pokémon se oculta en las sombras?
+        </div>
+
+        <!-- Cuadrícula de 4 Opciones -->
+        <div class="quiz-options-grid" id="quizOptionsGrid">
+          <!-- 4 botones generados dinámicamente -->
+        </div>
+
+        <!-- Barra inferior -->
+        <div class="quiz-controls-footer">
+          <button id="quizHintBtn" class="quiz-aux-btn" title="Ver pista de tipos elementales">💡 Pista de Tipo</button>
+          <button id="quizNextBtn" class="quiz-next-btn" style="display: none;">Siguiente Pokémon ➔</button>
+          <button id="quizResetStreakBtn" class="quiz-aux-btn quiz-reset-btn" title="Reiniciar contador de racha">🔄 Reiniciar Racha</button>
         </div>
       </div>
     </div>
