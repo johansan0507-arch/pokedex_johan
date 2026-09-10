@@ -803,6 +803,63 @@ body {
 }
 
 /* ==========================================================================
+   Sección de Formas Alternas (Megas, Gigamax, Regionales) en el Modal
+   ========================================================================== */
+.modal-forms-section {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 1.2rem;
+  background: #efe4d3;
+  padding: 0.7rem 1rem;
+  border-radius: 20px;
+  box-shadow: inset 0 -2px 0 #d9cbba;
+}
+
+.modal-forms-label {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  font-weight: 800;
+  color: #7a6b5d;
+  letter-spacing: 0.5px;
+}
+
+.modal-forms-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
+
+.modal-form-btn {
+  background: #fdfbf7;
+  color: #1e1e2a;
+  border: 1.5px solid #dcd0bf;
+  padding: 0.35rem 0.9rem;
+  border-radius: 30px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.modal-form-btn:hover {
+  background: #ffffff;
+  border-color: #dc0a2d;
+  transform: translateY(-1px);
+}
+
+.modal-form-btn.active {
+  background: #dc0a2d;
+  color: #ffffff;
+  border-color: #b0021f;
+  box-shadow: 0 3px 8px rgba(220, 10, 45, 0.4);
+}
+
+/* ==========================================================================
    Cadena Evolutiva en el Modal
    ========================================================================== */
 .modal-evolution-section {

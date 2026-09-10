@@ -12,7 +12,7 @@
     9: { name: 'Paldea', offset: 905, limit: 120 }
   };
 
-  // Traducción de nombres de ítems y métodos de evolución comunes
+  // Traducción de métodos e ítems de evolución
   const EVO_ITEMS_MAP = {
     'thunder-stone': 'Piedra Trueno',
     'fire-stone': 'Piedra Fuego',
@@ -40,9 +40,9 @@
   const modalBody = document.getElementById('modalBody');
 
   // Estado de la aplicación
-  let currentGen = 1;
-  const cacheByGen = {}; // Caché de Pokémon por generación
-  const evolutionChainCache = {}; // Caché de cadenas evolutivas
+  let currentSelection = '1'; // Puede ser '1'-'9', o 'mega', 'gmax'
+  const cacheByGen = {}; // Caché de Pokémon por categoría/generación
+  const speciesCache = {}; // Caché de datos de especie (variedades y evoluciones)
   let currentPokemonList = [];
   let selectedType = 'all';
   let searchTerm = '';
@@ -59,6 +59,39 @@
     speed: { label: 'Velocidad', class: 'stat-fill-speed' }
   };
 
+  // Formato para nombres amigables (ej: Mega Charizard X, Gengar Gigamax)
+  function formatPokemonDisplayName(name) {
+    if (!name) return '';
+    const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+
+    if (name.endsWith('-mega-x')) return 'Mega ' + cap(name.replace('-mega-x', '')) + ' X';
+    if (name.endsWith('-mega-y')) return 'Mega ' + cap(name.replace('-mega-y', '')) + ' Y';
+    if (name.endsWith('-mega')) return 'Mega ' + cap(name.replace('-mega', ''));
+    if (name.endsWith('-gmax')) return cap(name.replace('-gmax', '')) + ' Gigamax';
+    if (name.endsWith('-primal')) return cap(name.replace('-primal', '')) + ' Primigenio';
+    if (name.endsWith('-alola')) return cap(name.replace('-alola', '')) + ' de Alola';
+    if (name.endsWith('-galar')) return cap(name.replace('-galar', '')) + ' de Galar';
+    if (name.endsWith('-hisui')) return cap(name.replace('-hisui', '')) + ' de Hisui';
+    if (name.endsWith('-paldea')) return cap(name.replace('-paldea', '')) + ' de Paldea';
+
+    return cap(name.replace(/-/g, ' '));
+  }
+
+  function formatVarietyLabel(baseName, varietyName) {
+    if (varietyName === baseName) return 'Forma Base';
+    const suffix = varietyName.replace(baseName + '-', '');
+    if (suffix === 'mega') return 'Mega';
+    if (suffix === 'mega-x') return 'Mega X';
+    if (suffix === 'mega-y') return 'Mega Y';
+    if (suffix === 'gmax') return 'Gigamax';
+    if (suffix === 'primal') return 'Primigenio';
+    if (suffix === 'alola') return 'Alola';
+    if (suffix === 'galar') return 'Galar';
+    if (suffix === 'hisui') return 'Hisui';
+    if (suffix === 'paldea') return 'Paldea';
+    return suffix.replace(/-/g, ' ').toUpperCase();
+  }
+
   // ---------- Mensajes y Loader ----------
   function showStatus(message, isError = false) {
     statusContainer.textContent = message;
@@ -71,7 +104,7 @@
     statusContainer.style.display = 'none';
   }
 
-  function showLoader() {
+  function showLoader(text = 'Cargando Pokémon...') {
     loaderContainer.style.display = 'block';
     statusContainer.style.display = 'none';
     pokedexGrid.innerHTML = '';
@@ -119,7 +152,31 @@
     };
   }
 
-  // ---------- Obtención y Parseo de Cadena Evolutiva ----------
+  // ---------- Carga de Especie (Evoluciones y Variedades) ----------
+  async function fetchSpeciesData(pokemon) {
+    let speciesId = pokemon.id;
+    if (pokemon.species?.url) {
+      const parts = pokemon.species.url.split('/').filter(Boolean);
+      speciesId = parseInt(parts.pop(), 10);
+    }
+
+    if (speciesCache[speciesId]) {
+      return speciesCache[speciesId];
+    }
+
+    try {
+      const res = await fetch(`https://pokeapi.co/api/v2/pokemon-species/${speciesId}/`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      speciesCache[speciesId] = data;
+      return data;
+    } catch (e) {
+      console.warn('No se pudo cargar datos de especie:', e);
+      return null;
+    }
+  }
+
+  // ---------- Parseo de Cadena Evolutiva ----------
   function parseEvolutionNode(node) {
     const id = parseInt(node.species.url.split('/').filter(Boolean).pop(), 10);
     const current = {
@@ -156,30 +213,14 @@
     return current;
   }
 
-  async function fetchEvolutionChain(pokemonId) {
-    if (evolutionChainCache[pokemonId]) {
-      return evolutionChainCache[pokemonId];
-    }
-
+  async function fetchEvolutionChainFromSpecies(speciesData) {
+    if (!speciesData || !speciesData.evolution_chain?.url) return null;
     try {
-      // 1. Obtener la especie para hallar la URL de la cadena evolutiva
-      const speciesRes = await fetch(`https://pokeapi.co/api/v2/pokemon-species/${pokemonId}/`);
-      if (!speciesRes.ok) return null;
-      const speciesData = await speciesRes.json();
-
-      const chainUrl = speciesData.evolution_chain?.url;
-      if (!chainUrl) return null;
-
-      // 2. Obtener la cadena evolutiva
-      const chainRes = await fetch(chainUrl);
+      const chainRes = await fetch(speciesData.evolution_chain.url);
       if (!chainRes.ok) return null;
       const chainData = await chainRes.json();
-
-      const parsed = parseEvolutionNode(chainData.chain);
-      evolutionChainCache[pokemonId] = parsed;
-      return parsed;
+      return parseEvolutionNode(chainData.chain);
     } catch (e) {
-      console.warn('No se pudo cargar la cadena evolutiva:', e);
       return null;
     }
   }
@@ -193,7 +234,7 @@
     let html = `
       <div class="evo-card ${isCurrent ? 'current-pokemon' : ''}" data-pokemon-id="${evoNode.id}">
         <img src="${spriteUrl}" alt="${evoNode.name}" loading="lazy" onerror="this.src='${fallbackSprite}'">
-        <span class="evo-name">${evoNode.name}</span>
+        <span class="evo-name">${formatPokemonDisplayName(evoNode.name)}</span>
         <span class="evo-id">#${formattedId}</span>
       </div>
     `;
@@ -209,7 +250,6 @@
           ${renderEvolutionHtml(next, currentPokemonId)}
         `;
       } else {
-        // Múltiples ramificaciones (ej. Eevee)
         html += `
           <div class="evo-arrow">
             <span class="evo-trigger">Varios</span>
@@ -234,13 +274,15 @@
     return html;
   }
 
-  // ---------- Modal de Detalles con Shiny y Cadena Evolutiva ----------
+  // ---------- Modal de Detalles con Formas (Megas y Gigamax) ----------
   async function openModal(pokemon) {
     let isModalShiny = Boolean(pokemon.isShiny);
-    const formattedId = pokemon.id.toString().padStart(3, '0');
+    const formattedId = (pokemon.id || 0).toString().padStart(3, '0');
+    const displayName = formatPokemonDisplayName(pokemon.name);
 
     const defaultArtwork =
       pokemon.sprites?.other?.['official-artwork']?.front_default ||
+      pokemon.sprites?.other?.showdown?.front_default ||
       pokemon.sprites?.front_default ||
       '';
 
@@ -270,7 +312,7 @@
     const statsHtml = (pokemon.stats || [])
       .map(s => {
         const config = STATS_MAP[s.stat.name] || { label: s.stat.name, class: 'stat-fill-hp' };
-        const percentage = Math.min(100, Math.round((s.base_stat / 180) * 100));
+        const percentage = Math.min(100, Math.round((s.base_stat / 200) * 100));
         return `
           <div class="stat-row">
             <span class="stat-name">${config.label}</span>
@@ -289,18 +331,21 @@
     modalBody.innerHTML = `
       <div class="modal-header-section">
         <span class="modal-id-badge">#${formattedId}</span>
-        <h2 class="modal-title">${pokemon.name}</h2>
+        <h2 class="modal-title">${displayName}</h2>
         <div class="pokemon-types">${typeBadges}</div>
       </div>
 
+      <!-- Selector de Formas (Mega / Gigamax / Base) -->
+      <div id="modalFormsSection" style="display: none;"></div>
+
       <div class="modal-sprite-wrapper">
         <div class="modal-sprite-container ${isModalShiny ? 'is-shiny' : ''}" id="modalSpriteContainer">
-          <img id="modalSpriteImg" src="${isModalShiny ? shinyArtwork : defaultArtwork}" alt="${pokemon.name}">
+          <img id="modalSpriteImg" src="${isModalShiny ? shinyArtwork : defaultArtwork}" alt="${displayName}">
         </div>
         <div class="modal-actions-row">
           ${
             cryUrl
-              ? `<button class="modal-cry-btn" id="modalCryBtn" aria-label="Escuchar rugido de ${pokemon.name}">
+              ? `<button class="modal-cry-btn" id="modalCryBtn" aria-label="Escuchar rugido de ${displayName}">
                   🔊 Rugido
                 </button>`
               : ''
@@ -339,7 +384,7 @@
       </div>
     `;
 
-    // Evento de Sonido en Modal
+    // Eventos de Audio y Shiny
     const modalCryBtn = document.getElementById('modalCryBtn');
     if (modalCryBtn && cryUrl) {
       modalCryBtn.addEventListener('click', () => {
@@ -347,7 +392,6 @@
       });
     }
 
-    // Evento Shiny en Modal
     const modalShinyBtn = document.getElementById('modalShinyBtn');
     const modalSpriteImg = document.getElementById('modalSpriteImg');
     const modalSpriteContainer = document.getElementById('modalSpriteContainer');
@@ -356,7 +400,7 @@
       modalShinyBtn.addEventListener('click', () => {
         isModalShiny = !isModalShiny;
         modalSpriteImg.classList.remove('shiny-sparkle-anim');
-        void modalSpriteImg.offsetWidth; // reiniciar animación
+        void modalSpriteImg.offsetWidth;
         modalSpriteImg.classList.add('shiny-sparkle-anim');
 
         if (isModalShiny) {
@@ -373,55 +417,86 @@
       });
     }
 
-    // Abrir el diálogo
+    // Abrir diálogo
     if (typeof pokemonModal.showModal === 'function') {
       pokemonModal.showModal();
     } else {
       pokemonModal.setAttribute('open', '');
     }
 
-    // Cargar asíncronamente la cadena evolutiva
-    const evolutionFlow = document.getElementById('evolutionFlow');
-    const evoChain = await fetchEvolutionChain(pokemon.id);
+    // Cargar asíncronamente las Formas Alternas y Cadena Evolutiva desde la especie
+    const speciesData = await fetchSpeciesData(pokemon);
 
-    if (evoChain && evolutionFlow) {
-      evolutionFlow.innerHTML = renderEvolutionHtml(evoChain, pokemon.id);
+    if (speciesData) {
+      // 1. Manejo de Variedades (Megaevoluciones / Gigamax)
+      const modalFormsSection = document.getElementById('modalFormsSection');
+      const varieties = speciesData.varieties || [];
 
-      // Eventos de clic en las tarjetas de evolución para navegar
-      evolutionFlow.querySelectorAll('.evo-card').forEach(evoCard => {
-        evoCard.addEventListener('click', async () => {
-          const targetId = parseInt(evoCard.dataset.pokemonId, 10);
-          if (targetId === pokemon.id) return;
+      if (varieties.length > 1 && modalFormsSection) {
+        modalFormsSection.className = 'modal-forms-section';
+        modalFormsSection.style.display = 'flex';
 
-          // Buscar en memoria o consultar directo
-          let targetPokemon = currentPokemonList.find(p => p.id === targetId);
-          if (!targetPokemon) {
-            for (const genList of Object.values(cacheByGen)) {
-              const found = genList.find(p => p.id === targetId);
-              if (found) {
-                targetPokemon = found;
-                break;
+        const baseName = speciesData.name;
+        const buttonsHtml = varieties
+          .map(v => {
+            const label = formatVarietyLabel(baseName, v.pokemon.name);
+            const isActive = v.pokemon.name === pokemon.name;
+            return `
+              <button class="modal-form-btn ${isActive ? 'active' : ''}" data-variety-name="${v.pokemon.name}">
+                ${label}
+              </button>
+            `;
+          })
+          .join('');
+
+        modalFormsSection.innerHTML = `
+          <span class="modal-forms-label">⚡ Formas Disponibles (Mega / Gigamax):</span>
+          <div class="modal-forms-buttons">${buttonsHtml}</div>
+        `;
+
+        modalFormsSection.querySelectorAll('.modal-form-btn').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const targetVarietyName = btn.dataset.varietyName;
+            if (targetVarietyName === pokemon.name) return;
+
+            btn.textContent = 'Cargando...';
+            try {
+              const res = await fetch(`https://pokeapi.co/api/v2/pokemon/${targetVarietyName}`);
+              if (res.ok) {
+                const varietyData = await res.json();
+                openModal(varietyData);
               }
+            } catch (err) {
+              console.warn('Error cambiando de forma:', err);
             }
-          }
+          });
+        });
+      }
 
-          if (!targetPokemon) {
+      // 2. Manejo de Cadena Evolutiva
+      const evolutionFlow = document.getElementById('evolutionFlow');
+      const evoChain = await fetchEvolutionChainFromSpecies(speciesData);
+
+      if (evoChain && evolutionFlow) {
+        const baseId = parseInt(speciesData.id, 10);
+        evolutionFlow.innerHTML = renderEvolutionHtml(evoChain, baseId);
+
+        evolutionFlow.querySelectorAll('.evo-card').forEach(evoCard => {
+          evoCard.addEventListener('click', async () => {
+            const targetId = parseInt(evoCard.dataset.pokemonId, 10);
             try {
               evolutionFlow.innerHTML = '<div class="evo-loading-spinner">Cargando Pokémon...</div>';
               const res = await fetch(`https://pokeapi.co/api/v2/pokemon/${targetId}`);
               if (res.ok) {
-                targetPokemon = await res.json();
+                const targetData = await res.json();
+                openModal(targetData);
               }
             } catch (e) {}
-          }
-
-          if (targetPokemon) {
-            openModal(targetPokemon);
-          }
+          });
         });
-      });
-    } else if (evolutionFlow) {
-      evolutionFlow.innerHTML = '<div class="evo-loading-spinner">Este Pokémon no tiene evoluciones conocidas.</div>';
+      } else if (evolutionFlow) {
+        evolutionFlow.innerHTML = '<div class="evo-loading-spinner">Este Pokémon no tiene evoluciones conocidas.</div>';
+      }
     }
   }
 
@@ -437,7 +512,7 @@
     }
   }
 
-  // ---------- Renderizado de Tarjetas con Botón Shiny ✨ ----------
+  // ---------- Renderizado de Tarjetas ----------
   function renderPokemonList(pokemonArray) {
     if (!pokemonArray || pokemonArray.length === 0) {
       pokedexGrid.innerHTML = '';
@@ -455,9 +530,11 @@
       card.className = 'pokemon-card';
       card.setAttribute('role', 'button');
       card.setAttribute('tabindex', '0');
-      card.setAttribute('aria-label', `Ver detalles de ${pokemon.name}`);
 
-      const id = pokemon.id.toString().padStart(3, '0');
+      const displayName = formatPokemonDisplayName(pokemon.name);
+      card.setAttribute('aria-label', `Ver detalles de ${displayName}`);
+
+      const id = (pokemon.id || 0).toString().padStart(3, '0');
 
       const regularSprite =
         pokemon.sprites?.other?.['official-artwork']?.front_default ||
@@ -480,10 +557,10 @@
         <div class="card-header-row">
           <span class="pokemon-id">#${id}</span>
           <div class="card-actions">
-            <button class="btn-shiny ${pokemon.isShiny ? 'active' : ''}" title="Alternar versión Shiny (Variocolor)" aria-label="Versión Shiny de ${pokemon.name}">✨</button>
+            <button class="btn-shiny ${pokemon.isShiny ? 'active' : ''}" title="Alternar versión Shiny (Variocolor)" aria-label="Versión Shiny de ${displayName}">✨</button>
             ${
               cryUrl
-                ? `<button class="btn-cry" title="Escuchar rugido" aria-label="Rugido de ${pokemon.name}">🔊</button>`
+                ? `<button class="btn-cry" title="Escuchar rugido" aria-label="Rugido de ${displayName}">🔊</button>`
                 : ''
             }
           </div>
@@ -491,13 +568,13 @@
         <div class="pokemon-sprite">
           <img class="pokemon-card-img ${pokemon.isShiny ? 'shiny-sparkle-anim' : ''}" src="${
         pokemon.isShiny ? shinySprite : regularSprite
-      }" alt="${pokemon.name}" loading="lazy" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Ccircle cx=%2250%22 cy=%2250%22 r=%2245%22 fill=%22%23d0c0b0%22/%3E%3Ctext x=%2250%22 y=%2255%22 text-anchor=%22middle%22 font-size=%2230%22 fill=%22%235a4a3a%22%3E?%3C/text%3E%3C/svg%3E'">
+      }" alt="${displayName}" loading="lazy" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Ccircle cx=%2250%22 cy=%2250%22 r=%2245%22 fill=%22%23d0c0b0%22/%3E%3Ctext x=%2250%22 y=%2255%22 text-anchor=%22middle%22 font-size=%2230%22 fill=%22%235a4a3a%22%3E?%3C/text%3E%3C/svg%3E'">
         </div>
-        <span class="pokemon-name">${pokemon.name}</span>
+        <span class="pokemon-name">${displayName}</span>
         <div class="pokemon-types">${typeBadges}</div>
       `;
 
-      // Evento de Rugido
+      // Evento de Sonido
       const cryBtn = card.querySelector('.btn-cry');
       if (cryBtn && cryUrl) {
         cryBtn.addEventListener('click', e => {
@@ -506,7 +583,7 @@
         });
       }
 
-      // Evento de Alternancia Shiny
+      // Evento de Shiny
       const shinyBtn = card.querySelector('.btn-shiny');
       const cardImg = card.querySelector('.pokemon-card-img');
       if (shinyBtn && cardImg) {
@@ -515,7 +592,7 @@
           pokemon.isShiny = !pokemon.isShiny;
 
           cardImg.classList.remove('shiny-sparkle-anim');
-          void cardImg.offsetWidth; // reiniciar animación
+          void cardImg.offsetWidth;
           cardImg.classList.add('shiny-sparkle-anim');
 
           if (pokemon.isShiny) {
@@ -528,7 +605,6 @@
         });
       }
 
-      // Clic en la tarjeta para abrir el modal
       card.addEventListener('click', () => openModal(pokemon));
       card.addEventListener('keydown', e => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -590,7 +666,7 @@
     const query = searchTerm.trim().toLowerCase();
     if (query !== '') {
       filtered = filtered.filter(p => {
-        const nameMatch = p.name.toLowerCase().includes(query);
+        const nameMatch = p.name.toLowerCase().includes(query) || formatPokemonDisplayName(p.name).toLowerCase().includes(query);
         const idMatch = p.id.toString() === query;
         return nameMatch || idMatch;
       });
@@ -604,13 +680,13 @@
     renderPokemonList(filtered);
   }
 
-  // ---------- Carga por Generación ----------
-  async function loadGeneration(genNumber) {
-    currentGen = genNumber;
-    const config = GENERATIONS[genNumber] || GENERATIONS[1];
+  // ---------- Carga de Pokémon (Generaciones, Megas o Gigamax) ----------
+  async function loadSelection(selection) {
+    currentSelection = selection;
 
-    if (cacheByGen[genNumber]) {
-      currentPokemonList = cacheByGen[genNumber];
+    // 1. Si ya está en caché, mostrar inmediatamente
+    if (cacheByGen[selection]) {
+      currentPokemonList = cacheByGen[selection];
       applyFilters();
       return;
     }
@@ -618,37 +694,36 @@
     showLoader();
 
     try {
-      let pythonSuccess = false;
-      try {
-        const pyRes = await fetch(`/api/pokemon?gen=${genNumber}&offset=${config.offset}&limit=${config.limit}`);
-        if (pyRes.ok) {
-          const pyData = await pyRes.json();
-          if (pyData.results && pyData.results.length > 0) {
-            cacheByGen[genNumber] = pyData.results;
-            currentPokemonList = pyData.results;
-            pythonSuccess = true;
-          }
-        }
-      } catch (err) {}
+      let results = [];
 
-      if (pythonSuccess) {
-        hideLoader();
-        hideStatus();
-        applyFilters();
-        return;
+      if (selection === 'mega' || selection === 'gmax') {
+        // Cargar todas las formas especiales desde offset 1000
+        const listRes = await fetch('https://pokeapi.co/api/v2/pokemon?limit=350&offset=1000');
+        if (!listRes.ok) throw new Error('Error al conectar con formas especiales');
+        const listData = await listRes.json();
+
+        if (selection === 'mega') {
+          results = listData.results.filter(
+            p => p.name.endsWith('-mega') || p.name.includes('-mega-x') || p.name.includes('-mega-y') || p.name.endsWith('-primal')
+          );
+        } else if (selection === 'gmax') {
+          results = listData.results.filter(p => p.name.endsWith('-gmax'));
+        }
+      } else {
+        // Generaciones estándar (1 a 9)
+        const config = GENERATIONS[selection] || GENERATIONS[1];
+        const listUrl = `https://pokeapi.co/api/v2/pokemon?offset=${config.offset}&limit=${config.limit}`;
+        const response = await fetch(listUrl);
+        if (!response.ok) throw new Error('Error al conectar con PokéAPI');
+        const data = await response.json();
+        results = data.results;
       }
 
-      const listUrl = `https://pokeapi.co/api/v2/pokemon?offset=${config.offset}&limit=${config.limit}`;
-      const response = await fetch(listUrl);
-      if (!response.ok) throw new Error('Error al conectar con PokéAPI');
-
-      const data = await response.json();
-      const results = data.results;
-
+      // Descargar detalles en paralelo
       const fetchPromises = results.map(async item => {
         try {
           const res = await fetch(item.url);
-          if (!res.ok) throw new Error(`Fallo ${item.name}`);
+          if (!res.ok) return null;
           return await res.json();
         } catch (err) {
           return null;
@@ -659,29 +734,29 @@
       const validData = pokemonData.filter(p => p !== null);
       validData.sort((a, b) => a.id - b.id);
 
-      cacheByGen[genNumber] = validData;
+      cacheByGen[selection] = validData;
       currentPokemonList = validData;
 
       hideLoader();
       hideStatus();
       applyFilters();
     } catch (error) {
-      console.error('Error cargando generación:', error);
+      console.error('Error cargando selección:', error);
       hideLoader();
-      showStatus('Error al cargar la generación. Por favor, intenta de nuevo.', true);
+      showStatus('Error al cargar los Pokémon. Por favor, intenta de nuevo.', true);
     }
   }
 
   // ---------- Inicialización de Eventos ----------
   function init() {
-    loadGeneration(1);
+    loadSelection('1');
 
     if (generationSelect) {
       generationSelect.addEventListener('change', e => {
-        const selectedGen = parseInt(e.target.value, 10);
+        const val = e.target.value;
         searchTerm = '';
         searchInput.value = '';
-        loadGeneration(selectedGen);
+        loadSelection(val);
       });
     }
 
