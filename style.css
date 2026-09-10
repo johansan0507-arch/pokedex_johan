@@ -1700,6 +1700,47 @@ body {
   letter-spacing: -0.5px;
 }
 
+.quiz-category-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  background: #ffffff;
+  padding: 6px 12px;
+  border-radius: 14px;
+  border: 1.5px solid #e2e8f0;
+}
+
+.quiz-category-label {
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.quiz-category-select {
+  flex: 1;
+  min-width: 200px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1.5px solid #cbd5e1;
+  background: #f8fafc;
+  color: #1e293b;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.quiz-category-select:hover,
+.quiz-category-select:focus {
+  border-color: #3b82f6;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
 /* Marcador de Rachas */
 .quiz-scoreboard {
   display: flex;

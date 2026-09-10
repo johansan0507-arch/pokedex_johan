@@ -179,6 +179,7 @@
   const quizHintBtn = document.getElementById('quizHintBtn');
   const quizNextBtn = document.getElementById('quizNextBtn');
   const quizResetStreakBtn = document.getElementById('quizResetStreakBtn');
+  const quizCategorySelect = document.getElementById('quizCategorySelect');
 
   // Estado del Minijuego
   let quizCurrentStreak = 0;
@@ -188,6 +189,8 @@
   let quizCurrentPokemon = null;
   let quizRoundActive = false;
   let audioCtx = null;
+  let quizMasterPokemonList = null; // Lista de todos los 1350+ Pokémon incluyendo Megas y Formas
+  const quizPokemonDetailsCache = {}; // Cache de detalles completos
 
   // Mapeo de estadísticas
   const STATS_MAP = {
@@ -1365,11 +1368,137 @@
     }
   }
 
-  function openQuizModal() {
-    if (!currentPokemonList.length) {
-      loadSelection('1');
+  async function loadQuizMasterPool() {
+    if (quizMasterPokemonList && quizMasterPokemonList.length > 0) {
+      return quizMasterPokemonList;
     }
 
+    try {
+      const res = await fetch('https://pokeapi.co/api/v2/pokemon?limit=2000');
+      if (!res.ok) throw new Error('Error al conectar con la base de datos de PokéAPI');
+      const data = await res.json();
+
+      quizMasterPokemonList = data.results.map(item => {
+        const parts = item.url.split('/').filter(Boolean);
+        const id = parseInt(parts[parts.length - 1], 10);
+        return {
+          name: item.name,
+          url: item.url,
+          id: id
+        };
+      });
+
+      return quizMasterPokemonList;
+    } catch (err) {
+      console.error('Error cargando master pool de quiz:', err);
+      // Si falla, usar los Pokémon actuales en memoria
+      return currentPokemonList.map(p => ({
+        name: p.name,
+        url: `https://pokeapi.co/api/v2/pokemon/${p.id}/`,
+        id: p.id
+      }));
+    }
+  }
+
+  function getActiveQuizPool(masterList, category) {
+    if (!masterList || masterList.length === 0) return [];
+
+    switch (category) {
+      case 'special': // Megas + Gigamax
+        return masterList.filter(
+          p =>
+            p.name.endsWith('-mega') ||
+            p.name.includes('-mega-x') ||
+            p.name.includes('-mega-y') ||
+            p.name.endsWith('-primal') ||
+            p.name.endsWith('-gmax')
+        );
+
+      case 'mega': // Solo Megas
+        return masterList.filter(
+          p =>
+            p.name.endsWith('-mega') ||
+            p.name.includes('-mega-x') ||
+            p.name.includes('-mega-y') ||
+            p.name.endsWith('-primal')
+        );
+
+      case 'gmax': // Solo Gigamax
+        return masterList.filter(p => p.name.endsWith('-gmax'));
+
+      case 'regional': // Formas Regionales
+        return masterList.filter(
+          p =>
+            p.name.endsWith('-alola') ||
+            p.name.endsWith('-galar') ||
+            p.name.endsWith('-hisui') ||
+            p.name.endsWith('-paldea')
+        );
+
+      case '1':
+        return masterList.filter(p => p.id >= 1 && p.id <= 151);
+      case '2':
+        return masterList.filter(p => p.id >= 152 && p.id <= 251);
+      case '3':
+        return masterList.filter(p => p.id >= 252 && p.id <= 386);
+      case '4':
+        return masterList.filter(p => p.id >= 387 && p.id <= 493);
+      case '5':
+        return masterList.filter(p => p.id >= 494 && p.id <= 649);
+      case '6':
+        return masterList.filter(p => p.id >= 650 && p.id <= 721);
+      case '7':
+        return masterList.filter(p => p.id >= 722 && p.id <= 809);
+      case '8':
+        return masterList.filter(p => p.id >= 810 && p.id <= 905);
+      case '9':
+        return masterList.filter(p => p.id >= 906 && p.id <= 1025);
+
+      case 'all':
+      default:
+        // Todos los Pokémon estándar (1..1025) + Megas + Gigamax + Formas regionales
+        return masterList.filter(p => {
+          if (p.id <= 1025) return true;
+          if (p.name.includes('-mega') || p.name.endsWith('-primal')) return true;
+          if (p.name.endsWith('-gmax')) return true;
+          if (
+            p.name.endsWith('-alola') ||
+            p.name.endsWith('-galar') ||
+            p.name.endsWith('-hisui') ||
+            p.name.endsWith('-paldea')
+          ) {
+            return true;
+          }
+          return false;
+        });
+    }
+  }
+
+  async function fetchPokemonQuizDetail(entry) {
+    if (quizPokemonDetailsCache[entry.name]) {
+      return quizPokemonDetailsCache[entry.name];
+    }
+
+    for (const gen in cacheByGen) {
+      const found = cacheByGen[gen]?.find(p => p.name === entry.name);
+      if (found) {
+        quizPokemonDetailsCache[entry.name] = found;
+        return found;
+      }
+    }
+
+    try {
+      const res = await fetch(entry.url);
+      if (!res.ok) throw new Error(`No se pudo cargar ${entry.name}`);
+      const data = await res.json();
+      quizPokemonDetailsCache[entry.name] = data;
+      return data;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  function openQuizModal() {
     updateQuizScoreboard();
 
     if (typeof quizModal.showModal === 'function') {
@@ -1381,33 +1510,78 @@
     loadNextQuizRound();
   }
 
-  function loadNextQuizRound() {
-    if (!currentPokemonList.length) return;
-
-    quizRoundActive = true;
+  async function loadNextQuizRound() {
+    quizRoundActive = false;
     quizNextBtn.style.display = 'none';
-    quizHintBtn.disabled = false;
+    quizHintBtn.disabled = true;
 
-    // Seleccionar Pokémon objetivo aleatorio
-    const randomIdx = Math.floor(Math.random() * currentPokemonList.length);
-    quizCurrentPokemon = currentPokemonList[randomIdx];
+    quizFeedback.className = 'quiz-feedback';
+    quizFeedback.textContent = '🔍 Invocando un Pokémon misterioso...';
+    quizSprite.src = '';
+    quizSprite.classList.remove('revealed');
 
-    // Preparar 3 opciones señuelo distintas
+    quizOptionsGrid.innerHTML = `
+      <div style="grid-column: 1 / -1; text-align: center; color: #64748b; padding: 1.2rem; font-weight: 700;">
+        ⏳ Barajando opciones entre más de 1300 Pokémon...
+      </div>
+    `;
+
+    // 1. Cargar pool maestro completo
+    const masterList = await loadQuizMasterPool();
+    const category = quizCategorySelect ? quizCategorySelect.value : 'all';
+    const activePool = getActiveQuizPool(masterList, category);
+
+    if (!activePool || activePool.length === 0) {
+      quizFeedback.textContent = 'No hay Pokémon disponibles en esta categoría.';
+      return;
+    }
+
+    // 2. Escoger objetivo con sprite oficial válido
+    let targetPokemon = null;
+    let targetEntry = null;
+    let attempts = 0;
+
+    while (!targetPokemon && attempts < 6) {
+      attempts++;
+      const rIdx = Math.floor(Math.random() * activePool.length);
+      targetEntry = activePool[rIdx];
+      const detail = await fetchPokemonQuizDetail(targetEntry);
+      const sprite =
+        detail?.sprites?.other?.['official-artwork']?.front_default ||
+        detail?.sprites?.front_default;
+
+      if (sprite) {
+        targetPokemon = detail;
+      }
+    }
+
+    if (!targetPokemon) {
+      quizFeedback.textContent = 'Error al cargar silueta. Intenta de nuevo.';
+      quizNextBtn.style.display = 'inline-block';
+      return;
+    }
+
+    quizCurrentPokemon = targetPokemon;
+
+    // 3. Escoger 3 señuelos distintos de la categoría activa
+    const decoyPool = activePool.filter(p => p.name !== targetEntry.name);
     const decoys = [];
-    const pool = currentPokemonList.filter(p => p.id !== quizCurrentPokemon.id);
-    while (decoys.length < 3 && pool.length > 0) {
-      const dIdx = Math.floor(Math.random() * pool.length);
-      const chosen = pool.splice(dIdx, 1)[0];
+    while (decoys.length < 3 && decoyPool.length > 0) {
+      const dIdx = Math.floor(Math.random() * decoyPool.length);
+      const chosen = decoyPool.splice(dIdx, 1)[0];
       decoys.push(chosen);
     }
 
-    // Mezclar 4 opciones (1 correcta + 3 señuelos)
-    const allOptions = [quizCurrentPokemon, ...decoys].sort(() => Math.random() - 0.5);
+    // 4. Mezclar las 4 opciones
+    const allOptions = [
+      { name: targetEntry.name, isTarget: true },
+      ...decoys.map(d => ({ name: d.name, isTarget: false }))
+    ].sort(() => Math.random() - 0.5);
 
-    // Asignar silueta
+    // 5. Configurar silueta en pantalla
     const spriteUrl =
-      quizCurrentPokemon.sprites?.other?.['official-artwork']?.front_default ||
-      quizCurrentPokemon.sprites?.front_default ||
+      targetPokemon.sprites?.other?.['official-artwork']?.front_default ||
+      targetPokemon.sprites?.front_default ||
       '';
 
     quizSprite.src = spriteUrl;
@@ -1415,28 +1589,31 @@
 
     quizFeedback.className = 'quiz-feedback';
     quizFeedback.textContent = '¿Puedes adivinar qué Pokémon se oculta en las sombras?';
+    quizHintBtn.disabled = false;
 
-    // Crear 4 botones de opción
+    // 6. Generar botones interactivos de opciones
     quizOptionsGrid.innerHTML = '';
-    allOptions.forEach((pokemon, idx) => {
+    allOptions.forEach((opt, idx) => {
       const btn = document.createElement('button');
       btn.className = 'quiz-option-btn';
       btn.innerHTML = `
         <span class="quiz-opt-num">${idx + 1}</span>
-        <span class="quiz-opt-name">${formatPokemonDisplayName(pokemon.name)}</span>
+        <span class="quiz-opt-name">${formatPokemonDisplayName(opt.name)}</span>
       `;
-      btn.addEventListener('click', () => handleQuizAnswer(pokemon, btn));
+      btn.addEventListener('click', () => handleQuizAnswer(opt, btn));
       quizOptionsGrid.appendChild(btn);
     });
+
+    quizRoundActive = true;
   }
 
-  function handleQuizAnswer(selectedPokemon, btnElement) {
+  function handleQuizAnswer(selectedOption, btnElement) {
     if (!quizRoundActive || !quizCurrentPokemon) return;
     quizRoundActive = false;
 
     quizTotalRounds++;
 
-    // Deshabilitar todos los botones de opciones
+    // Deshabilitar todos los botones
     const allButtons = quizOptionsGrid.querySelectorAll('.quiz-option-btn');
     allButtons.forEach(b => (b.disabled = true));
 
@@ -1448,7 +1625,7 @@
       playCry(quizCurrentPokemon.cries.latest);
     }
 
-    const isCorrect = selectedPokemon.id === quizCurrentPokemon.id;
+    const isCorrect = selectedOption.isTarget === true || selectedOption.name === quizCurrentPokemon.name;
 
     if (isCorrect) {
       quizTotalCorrect++;
@@ -1687,6 +1864,12 @@
 
     if (quizResetStreakBtn) {
       quizResetStreakBtn.addEventListener('click', resetQuizStreak);
+    }
+
+    if (quizCategorySelect) {
+      quizCategorySelect.addEventListener('change', () => {
+        loadNextQuizRound();
+      });
     }
 
     // Atajos de teclado: números 1, 2, 3, 4 y Enter para avanzar
