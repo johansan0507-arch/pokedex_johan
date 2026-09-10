@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5">
-  <title>Pokédex · Python Flask & API Pokémon (Gen 1 - 9)</title>
+  <title>Pokédex · Python Flask & API Pokémon (Gen 1 - 9 & Arena de Batalla)</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
@@ -17,7 +17,7 @@
     </div>
   </header>
 
-  <!-- Barra de Control: Selector de Generación y Contador -->
+  <!-- Barra de Control: Selector de Generación, Contador y Botón de Batalla -->
   <section class="controls-bar" aria-label="Control de Generaciones">
     <div class="generation-selector-wrapper">
       <label for="generationSelect" class="generation-label">Región / Generación:</label>
@@ -37,7 +37,13 @@
         </optgroup>
       </select>
     </div>
-    <span class="pokemon-counter-badge" id="pokemonCounterBadge">151 Pokémon</span>
+
+    <div class="controls-right-group">
+      <span class="pokemon-counter-badge" id="pokemonCounterBadge">151 Pokémon</span>
+      <button id="openBattleBtn" class="battle-arena-btn" aria-label="Abrir Arena de Batalla">
+        ⚔️ Arena de Batalla
+      </button>
+    </div>
   </section>
 
   <!-- Filtro por Tipo -->
@@ -76,6 +82,133 @@
     <div class="modal-card" id="modalCard">
       <button class="modal-close-btn" id="modalCloseBtn" aria-label="Cerrar modal">&times;</button>
       <div id="modalBody"></div>
+    </div>
+  </dialog>
+
+  <!-- Modal de Arena de Batalla Pokémon -->
+  <dialog id="battleModal" class="battle-dialog">
+    <div class="battle-modal-container">
+      <button class="modal-close-btn" id="battleCloseBtn" aria-label="Cerrar arena de batalla">&times;</button>
+
+      <!-- Vista 1: Configuración de Combatientes y Selección de 4 Ataques -->
+      <div id="battleSetupView" class="battle-view active">
+        <h2 class="battle-main-title">⚔️ Arena de Batalla Pokémon</h2>
+        <p class="battle-subtitle">Elige a tu Pokémon, personaliza sus 4 ataques y enfréntate en combate.</p>
+
+        <div class="battle-fighters-grid">
+          <!-- Combatiente 1: Jugador -->
+          <div class="fighter-setup-card player-card">
+            <div class="fighter-card-header">
+              <span class="fighter-badge player-badge">Tu Pokémon</span>
+            </div>
+            <div class="fighter-select-row">
+              <select id="p1Select" class="fighter-select" aria-label="Seleccionar tu Pokémon"></select>
+            </div>
+            <div class="fighter-preview" id="p1Preview"></div>
+
+            <div class="moves-selection-panel">
+              <div class="moves-panel-header">
+                <span class="moves-panel-title">Elige tus 4 Ataques:</span>
+              </div>
+              <div class="move-slots-container">
+                <select class="battle-move-select" id="p1Move0" aria-label="Ataque 1"></select>
+                <select class="battle-move-select" id="p1Move1" aria-label="Ataque 2"></select>
+                <select class="battle-move-select" id="p1Move2" aria-label="Ataque 3"></select>
+                <select class="battle-move-select" id="p1Move3" aria-label="Ataque 4"></select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Separador VS Central -->
+          <div class="battle-vs-separator">
+            <span class="vs-circle">VS</span>
+            <button id="randomRivalBtn" class="random-rival-btn" title="Seleccionar rival al azar">🎲 Rival Aleatorio</button>
+          </div>
+
+          <!-- Combatiente 2: Oponente / CPU -->
+          <div class="fighter-setup-card rival-card">
+            <div class="fighter-card-header">
+              <span class="fighter-badge rival-badge">Oponente</span>
+            </div>
+            <div class="fighter-select-row">
+              <select id="p2Select" class="fighter-select" aria-label="Seleccionar oponente"></select>
+            </div>
+            <div class="fighter-preview" id="p2Preview"></div>
+
+            <div class="moves-selection-panel">
+              <div class="moves-panel-header">
+                <span class="moves-panel-title">4 Ataques del Rival:</span>
+              </div>
+              <div class="move-slots-container">
+                <select class="battle-move-select" id="p2Move0" aria-label="Ataque 1 rival"></select>
+                <select class="battle-move-select" id="p2Move1" aria-label="Ataque 2 rival"></select>
+                <select class="battle-move-select" id="p2Move2" aria-label="Ataque 3 rival"></select>
+                <select class="battle-move-select" id="p2Move3" aria-label="Ataque 4 rival"></select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <button id="startBattleBtn" class="start-battle-btn">⚔️ ¡Comenzar Batalla!</button>
+      </div>
+
+      <!-- Vista 2: Campo de Batalla Interactivo -->
+      <div id="battleArenaView" class="battle-view" style="display: none;">
+        <!-- Escenario de Combate con HUDs -->
+        <div class="battlefield-stage">
+          <!-- HUD del Rival (Arriba Derecha) -->
+          <div class="battle-hud rival-hud" id="p2Hud">
+            <div class="hud-header">
+              <span class="hud-name" id="p2HudName">Rival</span>
+              <span class="hud-level">Nv. 50</span>
+            </div>
+            <div class="hud-hp-bar-container">
+              <div class="hud-hp-fill" id="p2HpFill" style="width: 100%;"></div>
+            </div>
+            <div class="hud-hp-text" id="p2HpText">PS: 100 / 100</div>
+          </div>
+
+          <!-- Plataforma y Sprite del Rival -->
+          <div class="sprite-platform rival-platform">
+            <div class="platform-shadow"></div>
+            <img id="p2BattleSprite" class="battle-sprite" src="" alt="Rival">
+          </div>
+
+          <!-- Plataforma y Sprite del Jugador -->
+          <div class="sprite-platform player-platform">
+            <div class="platform-shadow"></div>
+            <img id="p1BattleSprite" class="battle-sprite" src="" alt="Tu Pokémon">
+          </div>
+
+          <!-- HUD del Jugador (Abajo Izquierda) -->
+          <div class="battle-hud player-hud" id="p1Hud">
+            <div class="hud-header">
+              <span class="hud-name" id="p1HudName">Tu Pokémon</span>
+              <span class="hud-level">Nv. 50</span>
+            </div>
+            <div class="hud-hp-bar-container">
+              <div class="hud-hp-fill" id="p1HpFill" style="width: 100%;"></div>
+            </div>
+            <div class="hud-hp-text" id="p1HpText">PS: 100 / 100</div>
+          </div>
+        </div>
+
+        <!-- Caja de Diálogo y Registro de Combate -->
+        <div class="battle-dialog-box" id="battleLogBox">
+          <p id="battleLogText">¡La batalla está a punto de comenzar! Elige tu ataque.</p>
+        </div>
+
+        <!-- Panel de 4 Ataques en Batalla -->
+        <div class="battle-action-panel">
+          <div class="moves-battle-grid" id="battleMovesGrid">
+            <!-- Botones generados dinámicamente -->
+          </div>
+          <div class="battle-controls-footer">
+            <button id="rematchBattleBtn" class="arena-control-btn" style="display: none;">🔄 Revancha</button>
+            <button id="changeFightersBtn" class="arena-control-btn">⚙️ Cambiar Pokémon / Ataques</button>
+          </div>
+        </div>
+      </div>
     </div>
   </dialog>
 

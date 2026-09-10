@@ -177,6 +177,38 @@ body {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
+.controls-right-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.battle-arena-btn {
+  background: linear-gradient(135deg, #e60026 0%, #b80018 100%);
+  color: #ffffff;
+  border: 1px solid #ff4d6a;
+  padding: 0.55rem 1.4rem;
+  border-radius: 30px;
+  font-size: 0.95rem;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(220, 10, 45, 0.4), 0 2px 0 #7a0015;
+  transition: all 0.2s ease;
+  letter-spacing: 0.5px;
+}
+
+.battle-arena-btn:hover {
+  transform: translateY(-2px) scale(1.03);
+  background: linear-gradient(135deg, #ff1a3c 0%, #d4001e 100%);
+  box-shadow: 0 6px 16px rgba(220, 10, 45, 0.6), 0 3px 0 #7a0015;
+}
+
+.battle-arena-btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #7a0015;
+}
+
 /* ==========================================================================
    Filtros por Tipo (Barra deslizable)
    ========================================================================== */
@@ -976,6 +1008,505 @@ body {
 }
 
 /* ==========================================================================
+   Modal y Escenario de la Arena de Batalla
+   ========================================================================== */
+.battle-dialog {
+  border: none;
+  border-radius: 30px;
+  background: transparent;
+  padding: 0;
+  max-width: 860px;
+  width: 95vw;
+  margin: auto;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7);
+  outline: none;
+}
+
+.battle-dialog::backdrop {
+  background: rgba(10, 10, 18, 0.85);
+  backdrop-filter: blur(8px);
+}
+
+.battle-modal-container {
+  background: #fdfbf7;
+  border-radius: 30px;
+  padding: 1.8rem;
+  position: relative;
+  box-shadow: inset 0 -8px 0 #ded2c2;
+  border: 3px solid #f0e6d6;
+  max-height: 90vh;
+  overflow-y: auto;
+  animation: modalFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.battle-main-title {
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: #1e1e2a;
+  text-align: center;
+  letter-spacing: -0.5px;
+}
+
+.battle-subtitle {
+  text-align: center;
+  font-size: 0.95rem;
+  color: #6a5d50;
+  margin: 0.3rem 0 1.5rem;
+}
+
+/* Grilla de selección de combatientes */
+.battle-fighters-grid {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 1.2rem;
+  align-items: stretch;
+  margin-bottom: 1.5rem;
+}
+
+.fighter-setup-card {
+  background: #efe4d3;
+  border-radius: 20px;
+  padding: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  box-shadow: inset 0 -3px 0 #d9cbba;
+  border: 2px solid #e2d5c3;
+}
+
+.player-card {
+  border-color: #6390f0;
+}
+
+.rival-card {
+  border-color: #ee8130;
+}
+
+.fighter-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.8rem;
+}
+
+.fighter-badge {
+  background: #1e1e2a;
+  color: #ffffff;
+  padding: 0.25rem 0.8rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.player-badge {
+  background: #2b59c3;
+}
+
+.rival-badge {
+  background: #c33b2b;
+}
+
+.fighter-select {
+  width: 100%;
+  background: #ffffff;
+  border: 1.5px solid #d4c4b0;
+  padding: 0.5rem 0.8rem;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #1e1e2a;
+  cursor: pointer;
+  outline: none;
+  margin-bottom: 0.8rem;
+}
+
+.fighter-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.fighter-preview-sprite {
+  width: 110px;
+  height: 110px;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.2));
+  transition: transform 0.2s;
+}
+
+.fighter-preview-name {
+  font-size: 1.15rem;
+  font-weight: 800;
+  text-transform: capitalize;
+  color: #1e1e2a;
+  margin: 0.2rem 0;
+}
+
+.fighter-preview-types {
+  display: flex;
+  gap: 4px;
+}
+
+/* Panel de selección de 4 ataques */
+.moves-selection-panel {
+  background: #fdfbf7;
+  border-radius: 14px;
+  padding: 0.8rem;
+  margin-top: auto;
+  border: 1px solid #ded0be;
+}
+
+.moves-panel-title {
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: #5a4a3a;
+  text-transform: uppercase;
+  margin-bottom: 0.5rem;
+  display: block;
+}
+
+.move-slots-container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.battle-move-select {
+  width: 100%;
+  padding: 0.38rem 0.6rem;
+  border-radius: 8px;
+  border: 1px solid #d4c4b0;
+  background: #ffffff;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #1e1e2a;
+  outline: none;
+  cursor: pointer;
+}
+
+/* Separador VS central */
+.battle-vs-separator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.vs-circle {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: #dc0a2d;
+  color: #ffffff;
+  font-size: 1.2rem;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3), inset 0 -2px 0 #7a0015;
+  border: 2px solid #ffffff;
+}
+
+.random-rival-btn {
+  background: #f8f0e3;
+  color: #1e1e2a;
+  border: 1.5px solid #d4c4b0;
+  padding: 0.4rem 0.8rem;
+  border-radius: 20px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+
+.random-rival-btn:hover {
+  background: #ffffff;
+  transform: scale(1.05);
+}
+
+.start-battle-btn {
+  width: 100%;
+  background: linear-gradient(135deg, #e60026 0%, #b80018 100%);
+  color: #ffffff;
+  border: none;
+  padding: 0.85rem;
+  border-radius: 40px;
+  font-size: 1.2rem;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 6px 16px rgba(220, 10, 45, 0.4), 0 3px 0 #7a0015;
+  transition: all 0.2s;
+}
+
+.start-battle-btn:hover {
+  transform: translateY(-2px);
+  background: linear-gradient(135deg, #ff1a3c 0%, #d4001e 100%);
+  box-shadow: 0 8px 20px rgba(220, 10, 45, 0.6), 0 3px 0 #7a0015;
+}
+
+/* ==========================================================================
+   Vista 2: Escenario del Campo de Batalla Interactivo
+   ========================================================================== */
+.battlefield-stage {
+  width: 100%;
+  height: 320px;
+  background: linear-gradient(180deg, #78c2e6 0%, #c1e7f8 50%, #76c043 55%, #5a9e32 100%);
+  border-radius: 24px;
+  border: 3px solid #33691e;
+  position: relative;
+  overflow: hidden;
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.2), 0 8px 16px rgba(0, 0, 0, 0.25);
+  margin-bottom: 1rem;
+}
+
+/* HUDs de vida */
+.battle-hud {
+  position: absolute;
+  background: #fdfbf7;
+  border: 2px solid #1e1e2a;
+  border-radius: 14px;
+  padding: 0.6rem 0.9rem;
+  min-width: 190px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.25);
+  z-index: 10;
+}
+
+.rival-hud {
+  top: 15px;
+  right: 20px;
+}
+
+.player-hud {
+  bottom: 15px;
+  left: 20px;
+}
+
+.hud-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.3rem;
+}
+
+.hud-name {
+  font-size: 0.9rem;
+  font-weight: 800;
+  text-transform: capitalize;
+  color: #1e1e2a;
+}
+
+.hud-level {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #7a6b5d;
+}
+
+.hud-hp-bar-container {
+  height: 10px;
+  background: #e0d0be;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #1e1e2a;
+  margin-bottom: 0.2rem;
+}
+
+.hud-hp-fill {
+  height: 100%;
+  background: #4caf50;
+  transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.4s;
+}
+
+.hud-hp-fill.hp-yellow {
+  background: #ffb300;
+}
+
+.hud-hp-fill.hp-red {
+  background: #e53935;
+}
+
+.hud-hp-text {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-align: right;
+  color: #1e1e2a;
+}
+
+/* Plataformas y Sprites */
+.sprite-platform {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.rival-platform {
+  top: 65px;
+  left: 60px;
+}
+
+.player-platform {
+  bottom: 25px;
+  right: 70px;
+}
+
+.platform-shadow {
+  width: 120px;
+  height: 25px;
+  background: rgba(30, 60, 20, 0.35);
+  border-radius: 50%;
+  filter: blur(3px);
+  position: absolute;
+  bottom: -5px;
+}
+
+.battle-sprite {
+  width: 130px;
+  height: 130px;
+  object-fit: contain;
+  position: relative;
+  z-index: 5;
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.3));
+  transition: transform 0.2s;
+}
+
+/* Animaciones de combate */
+.attack-lunge-player {
+  animation: lungePlayer 0.35s ease-in-out;
+}
+
+@keyframes lungePlayer {
+  0% { transform: translate(0, 0); }
+  50% { transform: translate(-40px, -30px) scale(1.1); }
+  100% { transform: translate(0, 0); }
+}
+
+.attack-lunge-rival {
+  animation: lungeRival 0.35s ease-in-out;
+}
+
+@keyframes lungeRival {
+  0% { transform: translate(0, 0); }
+  50% { transform: translate(40px, 30px) scale(1.1); }
+  100% { transform: translate(0, 0); }
+}
+
+.hit-shake {
+  animation: shakeDamage 0.4s ease-in-out;
+}
+
+@keyframes shakeDamage {
+  0%, 100% { transform: translateX(0); filter: none; }
+  20%, 60% { transform: translateX(-8px); filter: brightness(2) drop-shadow(0 0 8px #ff0000); }
+  40%, 80% { transform: translateX(8px); filter: brightness(2) drop-shadow(0 0 8px #ff0000); }
+}
+
+.faint-fall {
+  animation: faintDown 0.6s forwards ease-in;
+}
+
+@keyframes faintDown {
+  0% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(50px) scale(0.8); }
+}
+
+/* Diálogo de batalla */
+.battle-dialog-box {
+  background: #1e1e2a;
+  color: #f8f0e3;
+  border: 3px solid #ded0be;
+  border-radius: 16px;
+  padding: 1rem 1.2rem;
+  font-size: 1rem;
+  font-weight: 700;
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+  margin-bottom: 1rem;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+  line-height: 1.4;
+}
+
+/* Grilla de los 4 ataques */
+.moves-battle-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.8rem;
+  margin-bottom: 0.8rem;
+}
+
+.battle-move-btn {
+  padding: 0.75rem 1rem;
+  border-radius: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  color: #ffffff;
+  position: relative;
+  overflow: hidden;
+}
+
+.battle-move-btn:hover:not(:disabled) {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.3);
+}
+
+.battle-move-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.battle-move-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.move-btn-name {
+  font-size: 0.95rem;
+  font-weight: 800;
+  text-transform: capitalize;
+  margin-bottom: 0.2rem;
+}
+
+.move-btn-meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  opacity: 0.9;
+}
+
+.battle-controls-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.arena-control-btn {
+  background: #efe4d3;
+  color: #1e1e2a;
+  border: 1.5px solid #d4c4b0;
+  padding: 0.5rem 1.2rem;
+  border-radius: 30px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.arena-control-btn:hover {
+  background: #ffffff;
+  transform: translateY(-1px);
+}
+
+/* ==========================================================================
    Responsive
    ========================================================================== */
 @media (max-width: 700px) {
@@ -1013,6 +1544,27 @@ body {
   .modal-card {
     padding: 1.4rem 1rem;
   }
+  .battle-fighters-grid {
+    grid-template-columns: 1fr;
+  }
+  .battlefield-stage {
+    height: 270px;
+  }
+  .battle-sprite {
+    width: 95px;
+    height: 95px;
+  }
+  .rival-platform {
+    top: 50px;
+    left: 30px;
+  }
+  .player-platform {
+    bottom: 20px;
+    right: 40px;
+  }
+  .moves-battle-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 450px) {
@@ -1032,5 +1584,11 @@ body {
   .stat-row {
     grid-template-columns: 60px 35px 1fr;
     gap: 6px;
+  }
+  .battle-modal-container {
+    padding: 1rem;
+  }
+  .battle-main-title {
+    font-size: 1.4rem;
   }
 }
